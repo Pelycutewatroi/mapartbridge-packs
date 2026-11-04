@@ -1,0 +1,54 @@
+name: verify-packs
+
+# Release assets are produced by the operator tool (pack content only exists on the Minecraft server),
+# so this workflow is the independent check: it re-downloads a published release and fails loudly if any
+# asset name, hash or pack.mcmeta is wrong.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to verify (empty = latest)
+        required: false
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+          tag="${TAG:-$(gh release view --json tagName -q .tagName)}"
+          echo "release: $tag"
+          rm -rf out && mkdir out && gh release download "$tag" --dir out
+          ls -l out
+          fail=0
+          for f in out/*.zip; do
+            base=$(basename "$f")
+            if ! [[ "$base" =~ ^(1\.21\.4|1\.21\.5|1\.21\.9|1\.21\.10|1\.21\.11|26\.3)-([0-9a-f]{40})\.zip$ ]]; then
+              echo "BAD NAME: $base"; fail=1; continue
+            fi
+            mc="${BASH_REMATCH[1]}"; want="${BASH_REMATCH[2]}"
+            got=$(sha1sum "$f" | cut -d' ' -f1)
+            [ "$got" = "$want" ] || { echo "SHA1 MISMATCH: $base"; fail=1; }
+            unzip -tq "$f" >/dev/null || { echo "BAD ZIP: $base"; fail=1; }
+            unzip -p "$f" pack.mcmeta > meta.json || { echo "NO pack.mcmeta: $base"; fail=1; }
+            case "$mc" in
+              1.21.4)  grep -q '"pack_format":46' meta.json || { echo "FORMAT: $base"; fail=1; } ;;
+              1.21.5)  grep -q '"pack_format":55' meta.json || { echo "FORMAT: $base"; fail=1; } ;;
+              1.21.9|1.21.10) grep -q '"min_format":\[69,0\]' meta.json || { echo "FORMAT: $base"; fail=1; } ;;
+              1.21.11) grep -q '"min_format":\[75,0\]' meta.json || { echo "FORMAT: $base"; fail=1; } ;;
+              26.3)    grep -q '"min_format":\[97,1\]' meta.json || { echo "FORMAT: $base"; fail=1; } ;;
+            esac
+          done
+          [ -f out/manifest.json ] || { echo "NO manifest.json"; fail=1; }
+          [ -f out/SHA256SUMS ] || { echo "NO SHA256SUMS"; fail=1; }
+          sha256sum -c out/SHA256SUMS || fail=1
+          exit $fail
