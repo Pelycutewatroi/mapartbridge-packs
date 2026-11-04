@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MapArtBridge RGB pack manifest",
+  "type": "object",
+  "required": [
+    "generatedAt",
+    "packs"
+  ],
+  "properties": {
+    "generatedAt": {
+      "type": "string"
+    },
+    "packs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "mc",
+          "file",
+          "sha1",
+          "sha256",
+          "bytes"
+        ],
+        "properties": {
+          "mc": {
+            "type": "string",
+            "enum": [
+              "1.21.4",
+              "1.21.5",
+              "1.21.9",
+              "1.21.10",
+              "1.21.11",
+              "26.3"
+            ]
+          },
+          "packFormat": {
+            "type": [
+              "array",
+              "integer"
+            ]
+          },
+          "file": {
+            "type": "string",
+            "pattern": "^.+-[0-9a-f]{40}\\.zip$"
+          },
+          "sha1": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    }
+  }
+}
